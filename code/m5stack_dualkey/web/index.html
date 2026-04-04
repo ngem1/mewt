@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mewt DualKey — web tester</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Mewt DualKey tester</h1>
+        <p>
+          Preview LED logic, drive a real DualKey over USB serial, or practice before your hardware
+          arrives.
+        </p>
+      </header>
+
+      <div id="browserBanner" class="banner"></div>
+
+      <section aria-labelledby="preview-heading">
+        <h2 id="preview-heading">LED preview</h2>
+        <p style="margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--muted)">
+          Matches <code>mewt_dualkey.ino</code>: muted → right green; hot quiet → left red; talking →
+          both red.
+        </p>
+        <div class="led-row">
+          <div class="led-unit">
+            <span>Left (pixel 0)</span>
+            <div id="ledLeft" class="led" aria-hidden="true"></div>
+          </div>
+          <div class="led-unit">
+            <span>Right (pixel 1)</span>
+            <div id="ledRight" class="led" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div style="text-align: center">
+          <span id="codePill" class="code-pill">Host → device: 0</span>
+        </div>
+      </section>
+
+      <section aria-labelledby="demo-heading">
+        <h2 id="demo-heading">Demo (no hardware)</h2>
+        <div class="row">
+          <label><input type="checkbox" id="chkMuted" checked /> Microphone muted</label>
+        </div>
+        <div class="row">
+          <label for="rangeLevel">Simulated input level</label>
+          <input type="range" id="rangeLevel" min="0" max="99" value="5" />
+          <span class="val" id="levelVal">5</span>
+        </div>
+        <div class="row">
+          <label for="rangeThresh">Talking threshold</label>
+          <input type="range" id="rangeThresh" min="1" max="40" value="8" />
+          <span class="val" id="threshVal">8</span>
+        </div>
+        <div class="row">
+          <label
+            ><input type="checkbox" id="chkMic" /> Use real microphone level (unmuted only)</label
+          >
+        </div>
+        <div class="row">
+          <button type="button" id="btnSimPress">Simulate DualKey press (toggle muted)</button>
+        </div>
+      </section>
+
+      <section aria-labelledby="serial-heading">
+        <h2 id="serial-heading">USB serial (when DualKey is here)</h2>
+        <p style="margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--muted)">
+          DualKey must be in <strong>USB</strong> mode. You cannot use this page and
+          <code>mewt_dualkey.ps1</code> at the same time — Windows allows only one program on the COM
+          port.
+        </p>
+        <div id="serialStatus" class="serial-status">Serial disconnected.</div>
+        <div class="row">
+          <button type="button" id="btnConnect" class="primary">Connect serial port…</button>
+          <button type="button" id="btnDisconnect" class="danger" disabled>Disconnect</button>
+        </div>
+        <div class="row">
+          <label
+            ><input type="checkbox" id="chkStream" checked /> Stream demo LED code to device
+            (~150&nbsp;ms)</label
+          >
+        </div>
+        <p style="margin: 0.75rem 0 0; font-size: 0.85rem; color: var(--muted)">
+          Manual sends (always work when connected; useful for blink test):
+        </p>
+        <div class="manual-btns">
+          <button type="button" id="btnSend101">Send 101</button>
+          <button type="button" id="btnSend0">Send 0</button>
+          <button type="button" id="btnSend1">Send 1</button>
+          <button type="button" id="btnSend2">Send 2</button>
+        </div>
+        <h2 style="margin-top: 1.25rem">Log</h2>
+        <div id="log" class="log" aria-live="polite"></div>
+      </section>
+
+      <footer>
+        Serve this folder over <code>localhost</code> (see README_DualKey.md). Lines from the
+        DualKey (button toggles) appear as RX in the log.
+      </footer>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -16,8 +16,38 @@ This branch adds a **M5 Stack Chain DualKey** build of Mewt: OS-level microphone
 | `code/m5stack_dualkey/mewt_dualkey.ino` | Flash to the DualKey |
 | `code/m5stack_dualkey/mewt_dualkey.ps1` | Windows host loop (mute + levels → LED codes) |
 | `code/m5stack_dualkey/setup_dualkey_port.ps1` | Create `mewt_com_port.txt` without the old self-extracting installer |
+| `code/m5stack_dualkey/web/` | **Browser tester** — demo LEDs + optional Web Serial (see below) |
 
 Copy **`AudioDeviceCmdlets.dll`** from `code/windows/mewt zip files/` into the **same folder** as `mewt_dualkey.ps1` (or install the module manually — see below).
+
+## Web tester (before or after hardware)
+
+The **`web/`** folder is a small static site that:
+
+- **Without a DualKey:** Shows the same **left/right LED preview** as the firmware, lets you adjust **muted**, **simulated level**, and **talking threshold** (aligned with `mewt_dualkey.ps1`), optionally uses your **microphone** to drive “talking” when unmuted, and simulates a **key press** (toggles muted).
+- **With a DualKey:** Uses the **Web Serial API** (Chrome or Edge) to open the DualKey’s **USB CDC** port at **9600 baud**, **stream** the current LED code on a timer (keeps the device’s 1s watchdog fed), **log** lines from the device (button toggles show as `0` / `1`), and **send** manual `0` / `1` / `2` / `101` for bring-up tests.
+
+**Important:** On Windows, **only one program may use a COM port at a time**. Close **`mewt_dualkey.ps1`** (and anything else using that port) before connecting from the browser. For day-to-day muting, run the PowerShell script; use the web page for **practice**, **debugging**, and **LED checks**.
+
+### How to open the page
+
+Web Serial only works in a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts): **HTTPS** or **`http://localhost`**. Opening `index.html` as a `file://` URL usually **blocks** serial.
+
+From a terminal, in the **`web`** directory:
+
+```bash
+# Python 3
+python3 -m http.server 8080
+```
+
+Then visit **`http://localhost:8080`** in **Chrome** or **Edge**.
+
+On Windows you can also use:
+
+```powershell
+cd code\m5stack_dualkey\web
+py -m http.server 8080
+```
 
 ## LED meaning (USB)
 
