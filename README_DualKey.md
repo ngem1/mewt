@@ -29,25 +29,42 @@ The **`web/`** folder is a small static site that:
 
 **Important:** On Windows, **only one program may use a COM port at a time**. Close **`mewt_dualkey.ps1`** (and anything else using that port) before connecting from the browser. For day-to-day muting, run the PowerShell script; use the web page for **practice**, **debugging**, and **LED checks**.
 
-### How to open the page
+This page does **not** run `mewt_dualkey.ps1`; it only mirrors LED logic in the browser and (optionally) talks to the DualKey over **Web Serial**.
 
-Web Serial only works in a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts): **HTTPS** or **`http://localhost`**. Opening `index.html` as a `file://` URL usually **blocks** serial.
+### How to run the web portal
 
-From a terminal, in the **`web`** directory:
+You need a tiny **local web server** so the address bar shows **`http://localhost:…`**. **Do not** open `index.html` by double-clicking it (`file://` URLs block Web Serial and may break module loading).
 
-```bash
-# Python 3
-python3 -m http.server 8080
-```
+1. **Clone or download** this repo and open a terminal.
+2. **Change into the web folder** (from the repo root):
 
-Then visit **`http://localhost:8080`** in **Chrome** or **Edge**.
+   | OS | Command |
+   |----|--------|
+   | macOS / Linux | `cd code/m5stack_dualkey/web` |
+   | Windows (PowerShell or CMD) | `cd code\m5stack_dualkey\web` |
 
-On Windows you can also use:
+3. **Start a static server** on port **8080** (any free port is fine; change the URL below to match):
 
-```powershell
-cd code\m5stack_dualkey\web
-py -m http.server 8080
-```
+   | OS | Command |
+   |----|--------|
+   | macOS / Linux | `python3 -m http.server 8080` |
+   | Windows | `py -m http.server 8080` or `python -m http.server 8080` |
+
+   If you see “command not found”, install [Python](https://www.python.org/downloads/) from python.org or the Microsoft Store, then try again.
+
+4. **Open a browser** to:
+
+   **`http://localhost:8080`**
+
+   Use **Chrome** or **Microsoft Edge** if you plan to use **Connect serial port** (Web Serial). Other browsers can still use **demo mode** (LED preview and sliders).
+
+5. When you are done, go back to the terminal and press **Ctrl+C** to stop the server.
+
+**Troubleshooting**
+
+- **“Serial not available”** — Use Chrome or Edge; avoid `file://`; use `localhost` as above.
+- **Port in use** — Pick another port, e.g. `python3 -m http.server 8090`, then open `http://localhost:8090`.
+- **Optional:** If you have Node.js, from the same `web` folder you can run `npx --yes serve -l 8080` and open the URL it prints (choose the `http://localhost` link).
 
 ## LED meaning (USB)
 
