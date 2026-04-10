@@ -136,6 +136,10 @@ The stock Mewt installer detects “new” COM ports by waiting for a count chan
 
 Optional third argument matches stock Mewt (`Zoom`, `Meet`, `Discord`) for app shortcuts.
 
+### Low-latency behavior
+
+`mewt_dualkey.ps1` is tuned for speed and toggles the **current default recording device** directly (instead of iterating all recording devices). This gives much faster mute/unmute response on key press.
+
 ### Talking threshold
 
 At the top of `mewt_dualkey.ps1`, **`$DUALKEY_TALK_THRESHOLD`** controls when level is treated as “talking” (LED code `2`). Increase it if ambient noise lights both reds; decrease if speech does not.

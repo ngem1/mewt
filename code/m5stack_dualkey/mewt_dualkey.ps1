@@ -40,6 +40,7 @@ if (!(Test-Path $module_dll)) {
 else {
 	Import-Module $module_dll
 }
+Set-Location $PSScriptRoot
 
 function Start-MewtAudioStream {
 	return Start-Process -FilePath powershell.exe -WorkingDirectory $PSScriptRoot -NoNewWindow "Import-Module $module_dll; Write-AudioDevice -RecordingStream | Out-File .\out.txt" -PassThru
@@ -55,7 +56,6 @@ $port.ReadTimeout = 50
 $port.open()
 
 $port.Write([int]101)
-clear
 write-host "MEWT ready"
 
 # sets up initial state for later comparison
@@ -71,11 +71,7 @@ $loop = 1
 
 while ($port.IsOpen)
 {
-	$mewt_stream_txt_file = ".\mewt_stream.txt"
-	$mewt_stream_txt_file_path = [System.IO.Path]::Combine($mewt_stream_txt_file)
-	$FileMode = [System.IO.FileMode]::OpenOrCreate
-	$FileAccess = [System.IO.FileAccess]::Write
-	$FileShare = [IO.FileShare]::Read
+	$mewt_stream_txt_file = Join-Path $PSScriptRoot "mewt_stream.txt"
 
 	# reads last volume value written
 	$last_mewt_stream_value = Get-Content -path ".\out.txt" -tail 1
@@ -85,11 +81,7 @@ while ($port.IsOpen)
 		$last_mewt_stream_value = [int]$last_mewt_stream_value
 
 		# writes value to mewt_stream.txt
-		$FileStream = New-Object IO.FileStream($mewt_stream_txt_file_path, $FileMode, $FileAccess, $FileShare)
-		$StreamWriter = New-Object System.IO.StreamWriter($FileStream)
-		$StreamWriter.WriteLine($last_mewt_stream_value)
-		$StreamWriter.flush()
-		$streamWriter.close()
+		Set-Content -Path $mewt_stream_txt_file -Value $last_mewt_stream_value -Encoding ASCII -ErrorAction SilentlyContinue
 	}
 
 	# gets mewt state, if mewted preps 0 to be sent to arduino
@@ -97,7 +89,7 @@ while ($port.IsOpen)
 	Catch [System.exception] {"faulty audio device"}
 	#$_.exception.gettype().fullname}
 
-	if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}
+	if ($process.HasExited) {$process = Start-MewtAudioStream}
 	
 	if ($current_mewt_state) {
 		$send_value_to_arduino = "0"
@@ -164,8 +156,7 @@ $wshell.SendKeys('^+d')
 }
 
 #$stopwatch
-			# clears the console output
-			clear
+			# keep console history for debugging (no clear)
 
 			# prints out requested mewt state
 			if ($value_from_arduino -eq 0) {
@@ -180,134 +171,13 @@ $wshell.SendKeys('^+d')
 #$stopwatch
 			}
 
-			# following is from the old mewt.ps1
-		
-			# gets the list of all audio devices
-			try  {$current_mewt_state = $audio_device_list = Get-AudioDevice -list -erroraction SilentlyContinue}
+			# Fast path: mute/unmute current default recording device only.
+			# This removes device-iteration and 0.51s retry logic for low-latency toggles.
+			try  {Set-AudioDevice -RecordingMute $value_from_arduino -erroraction SilentlyContinue}
 			Catch [System.exception] {"faulty audio device"}
-	#			$_.exception.gettype().fullname}
 
-if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}
-
-			# grabs only the recording devices, ignoring playback
-			$recording_devices = $audio_device_list | ? {$_.Type -eq "Recording"}
-			
-			# compares the latest recording devices snapshot against the previous
-			$recording_devices_changed = Compare-Object -ReferenceObject $recording_devices_old -DifferenceObject $recording_devices
-			$recording_devices_changed = $recording_devices_changed | out-string -stream | select-string "inputobject"
-			
-			# if the recording_devices list has changed, then resets the unmewtable_device to unknown, the current recording_devices list is saved for later comparison
-			if (!!$recording_devices_changed) {
-				$unmewtable_device = -1
-				$recording_devices_old = $recording_devices
-			}
-			
-			# saves the default_recording_device for later reinstatement
-			$default_recording_device = $recording_devices | ? {$_.Default -eq $True}
-
-			# grabs only the index of the recording devices
-			$recording_device_index = $recording_devices.Index | Out-String -stream
-
-			# for each index, mewts the device
-			foreach ($i in $recording_device_index) {
-
-				# converts the string to an int
-				$inti = [int]$i
-
-				# changes default audio device to the current iteration, nonverbose
-				try  {Set-AudioDevice $inti | out-null -erroraction SilentlyContinue}
-				Catch [System.exception] {"faulty audio device"}
-	#				$_.exception.gettype().fullname}					
-
-if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}
-
-				# if input is 1, mutes.  if it's 0, unmutes
-				try  {Set-AudioDevice -RecordingMute $value_from_arduino -erroraction SilentlyContinue}
-				Catch [System.exception] {"faulty audio device"}
-	#				$_.exception.gettype().fullname}
-
-if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}				
-
-#debug output to check for elapsed time
-write-host "toggle mewt state device #" $inti ": " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds
-			} 	# foreach ($i in $recording_device_index) {
-				# for each index, mewts the device
-
-#debug output to display unmewtable device id
-write-host "unmewtable device ID#" $unmewtable_device " " $out_timer.Elapsed.Days "days" $out_timer.Elapsed.Hours "hours" $out_timer.Elapsed.Minutes "minutes" $out_timer.Elapsed.Seconds "seconds"
-		
-			#this should only one time, the first time, to check to see if there are unmewtable devices
-			if (($unmewtable_device -eq -1) -and ($value_from_arduino -eq 1)) {
-$port.Write([int]101)
-			write-host "check whether there is an unmewtable device "  				
-				start-sleep -seconds 0.51
-				foreach ($i in $recording_device_index) {
-
-					# converts the string to an int
-					$inti = [int]$i
-
-					# changes default audio device to the current iteration, nonverbose
-					
-					try  {Set-AudioDevice $inti | out-null -erroraction SilentlyContinue}
-					Catch [System.exception] {"faulty audio device"}
-	#					$_.exception.gettype().fullname}						
-
-if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}
-
-					# writes the name of the device
-					try  {$audio_device_name = Get-AudioDevice $inti | out-string -stream | select-string "name" -erroraction SilentlyContinue}
-					Catch [System.exception] {"faulty audio device"}
-	#					$_.exception.gettype().fullname}		
-					
-if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}
-					
-					$audio_device_name = $audio_device_name -split ":"
-					$audio_device_name = $audio_device_name[1]
-					
-					# gets the recordingmute value
-					try  {$mewtstate =  Get-AudioDevice -RecordingMute -erroraction SilentlyContinue}
-					Catch [System.exception] {"faulty audio device"}
-	#					$_.exception.gettype().fullname}
-
-if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}
-
-					# if true, writes "mewted", otherwise "unmewted"
-					if ($mewtstate -eq $false) { 
-						#write-host "UNMEWTED " $audio_device_name.Trim() ":" $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds `n
-						$unmewtable_device = $inti
-					} 
-					else {
-						#write-host "MEWTED "  $audio_device_name.Trim() ":" $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds `n
-					}
-				}
-			write-host $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds
-			}
-
-			#after the first mewt attempt, if there is no unmewtable device discovered, set it to 0 so we never have to check again
-			if (($unmewtable_device -eq -1) -and ($value_from_arduino -eq 1)) {
-				$unmewtable_device = 0
-			}
-		
-
-			#if we have an unmewtable_device in the system, then this will mewt that device last, after the appropriate delay
-			if (([int]$unmewtable_device -gt 0) -and ([int]$value_from_arduino -eq 1)){
-				#read-host "inside unmewtable " $unmewtable_device
-				
-				try  {set-audiodevice $unmewtable_device -erroraction SilentlyContinue}
-				Catch [System.exception] {"faulty audio device"}
-	#				$_.exception.gettype().fullname}
-
-if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}
-				
-				start-sleep -seconds 0.51
-				try  {Set-AudioDevice -RecordingMute 1 -erroraction SilentlyContinue}
-				Catch [System.exception] {"faulty audio device"}
-	#				$_.exception.gettype().fullname}
-
-if ($process.HasExited) {$process = start-Process -FilePath powershell.exe  'Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru}				
-
-				write-host "toggle mewt state device #" $unmewtable_device ": " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds
-			}
+			if ($process.HasExited) {$process = Start-MewtAudioStream}
+			write-host "toggle mewt state: " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds "s"
 
 		} 	# if ($value_from_arduino -eq $mewt_state) {
 			# if value read is the same as mewt_state, that means that a change in state was requested
