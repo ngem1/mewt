@@ -12,6 +12,7 @@ $module_dll = Join-Path $module_dir "$module_name.dll"
 $local_module_dll = Join-Path $PSScriptRoot "$module_name.dll"
 $port_file = Join-Path $PSScriptRoot "mewt_com_port.txt"
 $out_file = Join-Path $PSScriptRoot "out.txt"
+$host_exe = (Get-Process -Id $PID).Path
 
 if (!(Test-Path $port_file)) {
 	Write-Error "mewt_com_port.txt not found in $PSScriptRoot. Run setup_dualkey_port.ps1 first."
@@ -44,8 +45,8 @@ else {
 Set-Location $PSScriptRoot
 
 function Start-MewtAudioStream {
-	$cmd = "& { Import-Module -LiteralPath '$module_dll'; Write-AudioDevice -RecordingStream | Out-File -FilePath '$out_file' }"
-	return Start-Process -FilePath powershell.exe -WorkingDirectory $PSScriptRoot -NoNewWindow -ArgumentList @("-NoProfile", "-Command", $cmd) -PassThru
+	$cmd = "& { Import-Module '$module_dll'; Write-AudioDevice -RecordingStream | Out-File -FilePath '$out_file' }"
+	return Start-Process -FilePath $host_exe -WorkingDirectory $PSScriptRoot -NoNewWindow -ArgumentList @("-NoProfile", "-Command", $cmd) -PassThru
 }
 
 if ($IsWindows) {
@@ -86,8 +87,13 @@ function Get-MewtRecordingMuted {
 
 	# Normalize common return shapes (bool, string, int, array/object)
 	if ($raw -is [System.Array] -and $raw.Count -gt 0) { $raw = $raw[0] }
+	if ($raw -is [bool]) { return $raw }
+	if ($raw -is [int] -or $raw -is [long]) { return ([int]$raw -eq 1) }
 	$text = "$raw".Trim().ToLowerInvariant()
-	return ($text -eq "true" -or $text -eq "1")
+	if ($text -match '\btrue\b') { return $true }
+	if ($text -match '\bfalse\b') { return $false }
+	if ($text -match '^\d+$') { return ([int]$text -eq 1) }
+	return $false
 }
 
 # starts writing volume stream to temporary file.
