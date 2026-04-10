@@ -88,6 +88,8 @@ write-host "MEWT ready"
 # sets up initial state for later comparison
 $previous_button_value = -1
 $unmewtable_device = -1
+$last_toggle_at_ms = 0
+$TOGGLE_COOLDOWN_MS = 180
 
 # takes a snapshot of the reocrding devices in the system for later comparison
 $audio_device_list = Get-AudioDevice -list
@@ -128,10 +130,6 @@ while ($port.IsOpen)
 	try {$value_from_arduino = $port.ReadLine()}
 	Catch [System.exception] {}
 #write-host $value_from_arduino
-	# holds mewt state in variable.  we are inverting the mewt state because we are sending 0 to arduino to indicate mute=true
-	$opposite_mewt_state = $send_value_to_arduino
-	
-	
 	# DualKey: 0 = muted (right green), 1 = unmuted quiet (left red), 2 = unmuted talking (both red)
 	if ([int]$send_value_to_arduino -eq 0) {
 		$dualkey_led = [int]0
@@ -155,7 +153,9 @@ while ($port.IsOpen)
 		$previous_button_value = $value_from_arduino
 		
 		# if value read is the same as $opposite_mewt_state, that means that a change in state was requested
-		if ($value_from_arduino -eq $opposite_mewt_state) {
+		$now_ms = [Environment]::TickCount64
+		if (($now_ms - $last_toggle_at_ms) -ge $TOGGLE_COOLDOWN_MS) {
+			$last_toggle_at_ms = $now_ms
 
 $stopwatch =  [system.diagnostics.stopwatch]::StartNew()
 $stopwatch
@@ -211,9 +211,9 @@ $wshell.SendKeys('^+d')
 			} else {
 				write-host "toggle complete: UNMUTED in " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds "s"
 			}
+		}
 
-		} 	# if ($value_from_arduino -eq $mewt_state) {
-			# if value read is the same as mewt_state, that means that a change in state was requested
+		} 	# cooldown gate for a real single press
 			
 		
 		
