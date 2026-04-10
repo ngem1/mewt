@@ -75,6 +75,21 @@ function Invoke-WinAltK {
 	[NativeKey]::keybd_event($VK_LWIN, 0, $KEYEVENTF_KEYUP, [UIntPtr]::Zero)
 }
 
+function Get-MewtRecordingMuted {
+	try {
+		$raw = Get-AudioDevice -RecordingMute -ErrorAction SilentlyContinue
+	} catch {
+		return $false
+	}
+
+	if ($null -eq $raw) { return $false }
+
+	# Normalize common return shapes (bool, string, int, array/object)
+	if ($raw -is [System.Array] -and $raw.Count -gt 0) { $raw = $raw[0] }
+	$text = "$raw".Trim().ToLowerInvariant()
+	return ($text -eq "true" -or $text -eq "1")
+}
+
 # starts writing volume stream to temporary file.
 $process = Start-MewtAudioStream
 #$port.close()
@@ -114,9 +129,7 @@ while ($port.IsOpen)
 	}
 
 	# gets mewt state, if mewted preps 0 to be sent to arduino
-	try  {$current_mewt_state = Get-AudioDevice -RecordingMute -erroraction SilentlyContinue}
-	Catch [System.exception] {"faulty audio device"}
-	#$_.exception.gettype().fullname}
+	$current_mewt_state = Get-MewtRecordingMuted
 
 	if ($process.HasExited) {$process = Start-MewtAudioStream}
 	
@@ -208,8 +221,7 @@ $wshell.SendKeys('^+d')
 
 			if ($process.HasExited) {$process = Start-MewtAudioStream}
 			Start-Sleep -Milliseconds 60
-			try  {$actual_mute_state = Get-AudioDevice -RecordingMute -erroraction SilentlyContinue}
-			Catch [System.exception] {"faulty audio device"}
+			$actual_mute_state = Get-MewtRecordingMuted
 			if ($actual_mute_state) {
 				write-host "toggle complete: MUTED in " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds "s"
 			} else {
