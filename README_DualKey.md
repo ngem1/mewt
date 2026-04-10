@@ -138,7 +138,7 @@ Optional third argument matches stock Mewt (`Zoom`, `Meet`, `Discord`) for app s
 
 ### Low-latency behavior
 
-`mewt_dualkey.ps1` is tuned for speed and toggles the **current default recording device** directly (instead of iterating all recording devices). This gives much faster mute/unmute response on key press.
+`mewt_dualkey.ps1` is tuned for speed and triggers the Windows global mic toggle shortcut (**Win+Alt+K**) on key press, then reads the resulting mute state with `AudioDeviceCmdlets` for LED feedback. This gives faster mute/unmute response while keeping host state as the source of truth.
 
 ### Talking threshold
 

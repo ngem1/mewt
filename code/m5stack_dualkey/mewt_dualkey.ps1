@@ -46,6 +46,33 @@ function Start-MewtAudioStream {
 	return Start-Process -FilePath powershell.exe -WorkingDirectory $PSScriptRoot -NoNewWindow "Import-Module $module_dll; Write-AudioDevice -RecordingStream | Out-File .\out.txt" -PassThru
 }
 
+if ($IsWindows) {
+	Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class NativeKey {
+  [DllImport("user32.dll", SetLastError=true)]
+  public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+}
+"@
+}
+
+function Invoke-WinAltK {
+	# Win+Alt+K (Windows system microphone toggle hotkey).
+	$KEYEVENTF_KEYUP = 0x0002
+	$VK_LWIN = 0x5B
+	$VK_MENU = 0x12
+	$VK_K = 0x4B
+
+	[NativeKey]::keybd_event($VK_LWIN, 0, 0, [UIntPtr]::Zero)
+	[NativeKey]::keybd_event($VK_MENU, 0, 0, [UIntPtr]::Zero)
+	[NativeKey]::keybd_event($VK_K, 0, 0, [UIntPtr]::Zero)
+	Start-Sleep -Milliseconds 10
+	[NativeKey]::keybd_event($VK_K, 0, $KEYEVENTF_KEYUP, [UIntPtr]::Zero)
+	[NativeKey]::keybd_event($VK_MENU, 0, $KEYEVENTF_KEYUP, [UIntPtr]::Zero)
+	[NativeKey]::keybd_event($VK_LWIN, 0, $KEYEVENTF_KEYUP, [UIntPtr]::Zero)
+}
+
 # starts writing volume stream to temporary file.
 $process = Start-MewtAudioStream
 #$port.close()
@@ -171,13 +198,19 @@ $wshell.SendKeys('^+d')
 #$stopwatch
 			}
 
-			# Fast path: mute/unmute current default recording device only.
-			# This removes device-iteration and 0.51s retry logic for low-latency toggles.
-			try  {Set-AudioDevice -RecordingMute $value_from_arduino -erroraction SilentlyContinue}
-			Catch [System.exception] {"faulty audio device"}
+			# Fast path: trigger Windows global mic shortcut, then read state back via AudioDeviceCmdlets.
+			try  {Invoke-WinAltK}
+			Catch [System.exception] {"failed to send Win+Alt+K"}
 
 			if ($process.HasExited) {$process = Start-MewtAudioStream}
-			write-host "toggle mewt state: " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds "s"
+			Start-Sleep -Milliseconds 60
+			try  {$actual_mute_state = Get-AudioDevice -RecordingMute -erroraction SilentlyContinue}
+			Catch [System.exception] {"faulty audio device"}
+			if ($actual_mute_state) {
+				write-host "toggle complete: MUTED in " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds "s"
+			} else {
+				write-host "toggle complete: UNMUTED in " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds "s"
+			}
 
 		} 	# if ($value_from_arduino -eq $mewt_state) {
 			# if value read is the same as mewt_state, that means that a change in state was requested
