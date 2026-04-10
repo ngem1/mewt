@@ -1,30 +1,30 @@
 # Mewt — M5 Stack Chain DualKey (Windows)
 
-This branch adds a **M5 Stack Chain DualKey** build of Mewt: OS-level microphone mute from the device, with **two NeoPixels** showing mute / hot / talking over **USB serial** (full behavior). **Bluetooth HID** can still act as a backup mute key, but the PC cannot drive the LEDs over BLE without extra software.
+This branch adds a **M5 Stack Chain DualKey** build of Mewt: OS-level microphone mute from the device, with **two NeoPixels** showing mute state over **USB serial**. **Bluetooth HID** can still act as a backup mute key, but the PC cannot drive the LEDs over BLE without extra software.
 
 ## What you need
 
 - [M5 Chain DualKey](https://docs.m5stack.com/en/arduino/chain_dualkey/program) (USB/BLE switch set to **USB** for full Mewt)
-- Windows PC (works **without administrator** for the usual Mewt PowerShell + DLL layout)
+- Windows PC (works **without administrator**)
 - Arduino IDE with **M5Stack** board support (**M5ChainDualKey**, board package ≥ 3.2.4) and **Adafruit NeoPixel** (≥ 1.15.2)
-- The same **`AudioDeviceCmdlets.dll`** used by stock Mewt (see below — you do **not** need to run any `.exe`)
+- No additional PowerShell modules required
 
 ## Files in this repo (minimal set)
 
 | Path | Purpose |
 |------|--------|
 | `code/m5stack_dualkey/mewt_dualkey.ino` | Flash to the DualKey |
-| `code/m5stack_dualkey/mewt_dualkey.ps1` | Windows host loop (mute + levels → LED codes) |
+| `code/m5stack_dualkey/mewt_dualkey.ps1` | Windows host loop (Core Audio mute status + Win+Alt+K toggle) |
 | `code/m5stack_dualkey/setup_dualkey_port.ps1` | Create `mewt_com_port.txt` without the old self-extracting installer |
 | `code/m5stack_dualkey/web/` | **Browser tester** — demo LEDs + optional Web Serial (see below) |
 
-Copy **`AudioDeviceCmdlets.dll`** from `code/windows/mewt zip files/` into the **same folder** as `mewt_dualkey.ps1` (or install the module manually — see below).
+No extra DLLs are required for `mewt_dualkey.ps1`.
 
 ## Web tester (before or after hardware)
 
 The **`web/`** folder is a small static site that:
 
-- **Without a DualKey:** Shows the same **left/right LED preview** as the firmware, lets you adjust **muted**, **simulated level**, and **talking threshold** (aligned with `mewt_dualkey.ps1`), optionally uses your **microphone** to drive “talking” when unmuted, and simulates a **key press** (toggles muted).
+- **Without a DualKey:** Shows the same **left/right LED preview** as the firmware, lets you adjust **muted** and simulate key presses.
 - **With a DualKey:** Uses the **Web Serial API** (Chrome or Edge) to open the DualKey’s **USB CDC** port at **9600 baud**, **stream** the current LED code on a timer (keeps the device’s 1s watchdog fed), **log** lines from the device (button toggles show as `0` / `1`), and **send** manual `0` / `1` / `2` / `101` for bring-up tests.
 
 **Important:** On Windows, **only one program may use a COM port at a time**. Close **`mewt_dualkey.ps1`** (and anything else using that port) before connecting from the browser. For day-to-day muting, run the PowerShell script; use the web page for **practice**, **debugging**, and **LED checks**.
@@ -73,39 +73,14 @@ Host sends one integer per line at **9600 baud**:
 | Code | Meaning | Pixels (default) |
 |------|---------|------------------|
 | `0` | Microphone **muted** | Left off, **right green** |
-| `1` | **Unmuted**, quiet | **Left red**, right off |
-| `2` | **Unmuted**, speaking (level ≥ threshold) | **Both red** |
+| `1` | **Unmuted** | **Left red**, right off |
 | `101` | Startup blink (green) | Same idea as stock Mewt |
 
 If left/right look swapped on your unit, change pixel indices `0` and `1` in `applyLedCode()` in `mewt_dualkey.ino`.
 
-## Install AudioDeviceCmdlets **without** running a `.exe`
+## Windows mute status source
 
-Stock Mewt’s Windows `.exe` is only a convenience wrapper; the **logic** is: copy the **`.dll`** and import it in PowerShell.
-
-### Option A — Next to the script (simplest)
-
-1. Copy `AudioDeviceCmdlets.dll` into the folder that contains `mewt_dualkey.ps1`.
-2. On first run, `mewt_dualkey.ps1` copies the DLL into your user module folder (same behavior as `mewt.ps1`).
-
-### Option B — Manual module install (no Mewt folder copy)
-
-1. Obtain `AudioDeviceCmdlets.dll` from this repo (`code/windows/mewt zip files/`) or from the upstream project [frgnca/AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets) (release **.zip**, not an installer).
-2. In **Windows PowerShell** or **PowerShell 7**, run (adjust the source path):
-
-```powershell
-$modDir = Join-Path (Split-Path $PROFILE) "Modules\AudioDeviceCmdlets"
-New-Item -ItemType Directory -Path $modDir -Force
-Copy-Item -Path "C:\path\to\AudioDeviceCmdlets.dll" -Destination $modDir
-Get-ChildItem $modDir | Unblock-File
-Import-Module AudioDeviceCmdlets
-```
-
-Use **`Split-Path $PROFILE`** so modules go to the right place for **PowerShell 5** vs **7** (paths differ).
-
-### If DLL download or script execution is blocked
-
-IT policy varies: you may be allowed **Git** or **ZIP extract** but not arbitrary `.exe`. A `.dll` + `.ps1` is often still usable. If **execution policy** blocks scripts, your options are whatever your org allows (e.g. `pwsh` from the Microsoft Store, signed scripts, or running the script from an allowed path). Mewt itself does not require elevation.
+`mewt_dualkey.ps1` now reads mute state directly from Windows Core Audio (`IAudioEndpointVolume`) and uses **Win+Alt+K** for toggling. This avoids external dependencies and works well on locked-down PCs.
 
 ## COM port: do you pick it every time?
 
@@ -126,7 +101,7 @@ The stock Mewt installer detects “new” COM ports by waiting for a count chan
 
 ## Run the Windows host
 
-1. Put in one folder: `mewt_dualkey.ps1`, `AudioDeviceCmdlets.dll`, and `mewt_com_port.txt` (from `setup_dualkey_port.ps1`).
+1. Put in one folder: `mewt_dualkey.ps1` and `mewt_com_port.txt` (from `setup_dualkey_port.ps1`).
 2. Open PowerShell **in that folder**.
 3. Run:
 
@@ -138,11 +113,7 @@ Optional third argument matches stock Mewt (`Zoom`, `Meet`, `Discord`) for app s
 
 ### Low-latency behavior
 
-`mewt_dualkey.ps1` is tuned for speed and triggers the Windows global mic toggle shortcut (**Win+Alt+K**) on key press, then reads the resulting mute state with `AudioDeviceCmdlets` for LED feedback. This gives faster mute/unmute response while keeping host state as the source of truth.
-
-### Talking threshold
-
-At the top of `mewt_dualkey.ps1`, **`$DUALKEY_TALK_THRESHOLD`** controls when level is treated as “talking” (LED code `2`). Increase it if ambient noise lights both reds; decrease if speech does not.
+`mewt_dualkey.ps1` is tuned for speed and triggers the Windows global mic toggle shortcut (**Win+Alt+K**) on key press, then reads mute state with Windows Core Audio for LED feedback.
 
 ## Bluetooth (backup)
 
@@ -150,4 +121,4 @@ With the DualKey switch on **BLE**, the PC typically sees a **HID keyboard** onl
 
 ## Acknowledgments
 
-Mewt’s Windows host uses [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets) (MIT). See the main [README](README.md) and [LICENSE](LICENSE).
+Mewt is inspired by the original project approach; this DualKey host uses native Windows APIs directly.
