@@ -11,6 +11,7 @@ $module_dir = Join-Path (Split-Path $PROFILE) "Modules\$module_name"
 $module_dll = Join-Path $module_dir "$module_name.dll"
 $local_module_dll = Join-Path $PSScriptRoot "$module_name.dll"
 $port_file = Join-Path $PSScriptRoot "mewt_com_port.txt"
+$out_file = Join-Path $PSScriptRoot "out.txt"
 
 if (!(Test-Path $port_file)) {
 	Write-Error "mewt_com_port.txt not found in $PSScriptRoot. Run setup_dualkey_port.ps1 first."
@@ -43,7 +44,8 @@ else {
 Set-Location $PSScriptRoot
 
 function Start-MewtAudioStream {
-	return Start-Process -FilePath powershell.exe -WorkingDirectory $PSScriptRoot -NoNewWindow "Import-Module $module_dll; Write-AudioDevice -RecordingStream | Out-File .\out.txt" -PassThru
+	$cmd = "& { Import-Module -LiteralPath '$module_dll'; Write-AudioDevice -RecordingStream | Out-File -FilePath '$out_file' }"
+	return Start-Process -FilePath powershell.exe -WorkingDirectory $PSScriptRoot -NoNewWindow -ArgumentList @("-NoProfile", "-Command", $cmd) -PassThru
 }
 
 if ($IsWindows) {
@@ -101,7 +103,7 @@ while ($port.IsOpen)
 	$mewt_stream_txt_file = Join-Path $PSScriptRoot "mewt_stream.txt"
 
 	# reads last volume value written
-	$last_mewt_stream_value = Get-Content -path ".\out.txt" -tail 1
+	$last_mewt_stream_value = Get-Content -Path $out_file -Tail 1 -ErrorAction SilentlyContinue
 
 	# skips non-integer values, and explicit types the output as int
 	if (($last_mewt_stream_value -ne $null) -and ($last_mewt_stream_value.gettype().name -eq "String")) {
@@ -124,10 +126,17 @@ while ($port.IsOpen)
 		$send_value_to_arduino = "1"
 	}
 
-	# reads last button pushed by arduino
-	try {$value_from_arduino = $port.ReadLine()}
+	# reads last button line from serial (DualKey boot logs may include non-numeric text)
+	$value_from_arduino = $null
+	try {
+		$serial_line = $port.ReadLine()
+		$serial_line = $serial_line.Trim()
+		if ($serial_line -match '^[01]$') {
+			$value_from_arduino = [int]$serial_line
+		}
+	}
 	Catch [System.exception] {}
-#write-host $value_from_arduino
+
 	# holds mewt state in variable.  we are inverting the mewt state because we are sending 0 to arduino to indicate mute=true
 	$opposite_mewt_state = $send_value_to_arduino
 	
@@ -148,14 +157,9 @@ while ($port.IsOpen)
 	try {$port.writeline([int]$dualkey_led)}
 	Catch [System.exception] {"No audio data"}
 
-	# if a value is read from arduino, that means there's a button push
-	#if (($value_from_arduino.length -gt 0) -and ($previous_button_value -ne [int]$value_from_arduino.Substring($value_from_arduino.length-1))){
-	if (($value_from_arduino.length -gt 0) -and ($previous_button_value -ne [int]$value_from_arduino)){
-		$value_from_arduino = [int]$value_from_arduino
+	# if a valid value is read from arduino, that means there's a button push
+	if (($null -ne $value_from_arduino) -and ($previous_button_value -ne $value_from_arduino)){
 		$previous_button_value = $value_from_arduino
-		
-		# if value read is the same as $opposite_mewt_state, that means that a change in state was requested
-		if ($value_from_arduino -eq $opposite_mewt_state) {
 
 $stopwatch =  [system.diagnostics.stopwatch]::StartNew()
 $stopwatch
@@ -211,14 +215,7 @@ $wshell.SendKeys('^+d')
 			} else {
 				write-host "toggle complete: UNMUTED in " $stopwatch.Elapsed.Seconds"."$stopwatch.Elapsed.Milliseconds "s"
 			}
-
-		} 	# if ($value_from_arduino -eq $mewt_state) {
-			# if value read is the same as mewt_state, that means that a change in state was requested
-			
-		
-		
-	}  	#if ($value_from_arduino.length -gt 0) {
-		#if a value is read from arduino, that means there's a button push	
+	}  	# if a valid value is read from arduino, that means there's a button push
 #if ($out_timer.Elapsed.hours -gt 10) {$process.Kill(); $loop = 0;import-module .\audiodevicecmdlets;$mewt_process = start-Process -FilePath powershell.exe  '.\mewt.ps1'}
 }
 $process.kill()
