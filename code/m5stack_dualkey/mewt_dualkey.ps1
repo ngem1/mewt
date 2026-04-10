@@ -3,22 +3,50 @@ $param=$args[0]
 # RecordingStream level at/above this value => LED "talking" (both pixels red). Tune if needed.
 $DUALKEY_TALK_THRESHOLD = 8
 
-$mewt_port = Get-Content -path ".\mewt_com_port.txt" -tail -1
-	Import-Module .\AudioDeviceCmdlets
+# Always run from script folder so relative paths are stable.
+Set-Location $PSScriptRoot
+
+$module_name = "AudioDeviceCmdlets"
+$module_dir = Join-Path (Split-Path $PROFILE) "Modules\$module_name"
+$module_dll = Join-Path $module_dir "$module_name.dll"
+$local_module_dll = Join-Path $PSScriptRoot "$module_name.dll"
+$port_file = Join-Path $PSScriptRoot "mewt_com_port.txt"
+
+if (!(Test-Path $port_file)) {
+	Write-Error "mewt_com_port.txt not found in $PSScriptRoot. Run setup_dualkey_port.ps1 first."
+	exit 1
+}
+
+$mewt_port = (Get-Content -Path $port_file | Select-Object -Last 1).Trim()
+if ([string]::IsNullOrWhiteSpace($mewt_port)) {
+	Write-Error "mewt_com_port.txt is empty. Run setup_dualkey_port.ps1 and save the DualKey COM port."
+	exit 1
+}
 
 # checks if AudioDeviceCmdlets already exists in system
-if (!(Test-Path "$($profile | split-path)\Modules\AudioDeviceCmdlets")) {
+if (!(Test-Path $module_dll)) {
+	if (!(Test-Path $local_module_dll)) {
+		Write-Error "AudioDeviceCmdlets.dll not found. Copy it next to mewt_dualkey.ps1, then rerun."
+		exit 1
+	}
 
 	# if not, installs AudioDeviceCmdlets locally
-	New-Item "$($profile | split-path)\Modules\AudioDeviceCmdlets" -Type directory -Force
-	Copy-Item ".\AudioDeviceCmdlets.dll" "$($profile | split-path)\Modules\AudioDeviceCmdlets\AudioDeviceCmdlets.dll"
-	Set-Location "$($profile | Split-Path)\Modules\AudioDeviceCmdlets"
+	New-Item $module_dir -Type directory -Force | Out-Null
+	Copy-Item $local_module_dll $module_dll -Force
+	Set-Location $module_dir
 	Get-ChildItem | Unblock-File
-	Import-Module .\AudioDeviceCmdlets
+	Import-Module $module_dll
+}
+else {
+	Import-Module $module_dll
+}
+
+function Start-MewtAudioStream {
+	return Start-Process -FilePath powershell.exe -WorkingDirectory $PSScriptRoot -NoNewWindow "Import-Module $module_dll; Write-AudioDevice -RecordingStream | Out-File .\out.txt" -PassThru
 }
 
 # starts writing volume stream to temporary file.
- $process = start-Process -FilePath powershell.exe -nonewwindow 'import-module .\audiodevicecmdlets; Write-AudioDevice -RecordingStream | out-file .\out.txt' -passthru
+$process = Start-MewtAudioStream
 #$port.close()
 $port = new-Object System.IO.Ports.SerialPort $mewt_port,9600,None,8,one
 $port.DTREnable = $True
